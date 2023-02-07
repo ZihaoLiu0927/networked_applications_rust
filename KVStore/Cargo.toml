@@ -8,8 +8,12 @@ edition = "2021"
 [dev-dependencies]
 assert_cmd = "2.0.7"
 predicates = "2.1.4"
+tempfile = "3.0.7"
+walkdir = "2.2.7"
 
 [dependencies]
 clap = {version = "4.1.4",  features = ["derive"]}
-# reqwest = {version = "0.11.11",features = ["json"]}
-# tokio = {version = "1.21.0",features = ["full"]}
+failure = {version = "0.1.8"}
+serde = {version = "1.0.152", features = ["derive"]}
+serde_json = "1.0.79"
+file_offset = "0.1.1"
