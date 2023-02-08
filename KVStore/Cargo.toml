@@ -13,7 +13,7 @@ walkdir = "2.2.7"
 
 [dependencies]
 clap = {version = "4.1.4",  features = ["derive"]}
-failure = {version = "0.1.8"}
+failure = {version = "0.1.8", features = ["derive"]}
 serde = {version = "1.0.152", features = ["derive"]}
 serde_json = "1.0.79"
 file_offset = "0.1.1"

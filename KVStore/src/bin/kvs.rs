@@ -5,9 +5,9 @@ use std::env::current_dir;
 
 fn main() -> Result<()> {
 
-    let mut kvs = KvStore::open(current_dir()?)?;
-
     let cli = Cli::parse_cli();
+
+    let mut kvs = KvStore::open(current_dir()?)?;
 
     match cli.params {
         Methods::Set(action) => {

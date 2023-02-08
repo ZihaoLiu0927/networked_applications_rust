@@ -1,41 +1,28 @@
+mod error;
+pub use error::{KVError, Result};
+
 use std::{collections::HashMap};
 use std::path::{PathBuf, Path};
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter, Write, Read, Seek, SeekFrom};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, BufReader, BufWriter, Write, Read, Seek, SeekFrom};
 use serde_json::Deserializer;
-
-use failure::{Error, Fail, format_err};
+use std::ffi::OsStr;
 use cli_parser::{Methods, SetAction, RemoveAction};
 
-pub type Result<T> = std::result::Result<T, Error>;
+const COMPACTION_THRESHOLD: u64 = 1024 * 1024; // 1MB
 
-#[derive(Debug, Fail)]
-pub enum KVError {
-    #[fail(display = "Error: {}", name)]
-    RemoveKeyNoExist {
-        name: String,
-    }
-}
+
 
 pub struct KvStore {
-    diskmap: HashMap<String, u64>,
-    reader: KVDiskReader<File>,
+    path: PathBuf,
+    indexmap: HashMap<String, DiskPos>,
+    readers: HashMap<u64, KVDiskReader<File>>,
     writer: KVDiskWriter<File>,
+    curr_gen: u64,
+    need_compact: u64,
 }
 
 impl KvStore {
-
-    pub fn new(file: File) -> Result<Self> {
-        
-        let mut kvs = Self {
-            diskmap: HashMap::new(),
-            reader: KVDiskReader::new(file.try_clone()?)?,
-            writer: KVDiskWriter::new(file)?,
-        };
-
-        kvs.recover_from_disk()?;
-        Ok(kvs)
-    }
 
     pub fn set(&mut self, key: String, val: String) -> Result<()> {
         let command = Methods::Set(SetAction {
@@ -43,60 +30,202 @@ impl KvStore {
             value: val.clone(),
         });
         let serialized = serde_json::to_string_pretty(&command)?;
-        let curr_offset = self.writer.write(serialized)?;
-        self.diskmap.insert(key, curr_offset);
+        let (pos, len) = self.writer.write_entry(serialized)?;
+        let command = DiskPos {
+            gen: self.curr_gen,
+            pos,
+            len,
+        };
+
+        let stale_len = self.indexmap.insert(key, command)
+            .unwrap_or(DiskPos::new()).len;
+        self.need_compact += stale_len;
+
+        if self.need_compact > COMPACTION_THRESHOLD {
+            self.compaction()?;
+        }
+
         Ok(())
     }
 
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let offset;
-        if let Some(val) = self.diskmap.get(&key) {
-            offset = *val;
+        if let Some(val) = self.indexmap.get(&key) {
+            let reader = self.readers
+                .get_mut(&val.gen)
+                .expect("Cannot find the file reader. This should not happen!");
+            
+            match reader.read_entry(val.pos, val.len) {
+                Ok(s) => Ok(Some(s)),
+                Err(_) => Ok(None),
+            }   
         } else {
-            return Ok(None);
-        }
-
-        match self.reader.read(offset) {
-            Ok(s) => Ok(Some(s)),
-            Err(_) => Ok(None),
-        }        
+            Ok(None)
+        }     
     }
 
     pub fn remove(&mut self, key: String) -> Result<()> {
-        if let Some(_) =  self.diskmap.get(&key) {
+        let check = self.get(key.clone())?;
+        if check.is_none() {
+            return Err(KVError::KeyNoExist)
+        }
+
+        if let Some(_) =  self.indexmap.get(&key) {
             let command = Methods::Rm(RemoveAction {
                 key: key.clone(), 
             });
             let serialized = serde_json::to_string_pretty(&command)?;
-            self.writer.write(serialized)?;
-            self.diskmap.remove(&key);
+            let (pos, len) = self.writer.write_entry(serialized)?;
+            let command = DiskPos {
+                gen: self.curr_gen,
+                pos,
+                len,
+            };
+            self.indexmap.insert(key, command);
+
         } else {
-            return Err(format_err!("Key not found!"));
+            return Err(KVError::KeyNoExist)
         }
         Ok(())
     }
 
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        let file = OpenOptions::new().
-                            create(true).
-                            write(true).
-                            read(true).
-                            append(true).
-                            open(create_log_filename(&path.into()))?;
-        let kvs = KvStore::new(file);
-        kvs
+        let path = path.into();
+        fs::create_dir_all(&path)?;
+
+        let mut indexmap: HashMap<String, DiskPos> = HashMap::new();
+        let mut need_compact = 0;
+
+        let mut readers: HashMap<u64, KVDiskReader<File>> = HashMap::new(); 
+        let gen_list = collect_file_identifiers(&path)?;
+
+        for &gen in &gen_list {
+            let mut reader = KVDiskReader::new(File::open(logfile!(path, gen))?)?;
+            need_compact += reader.load_log_from_disk(&mut indexmap, gen)?;
+            readers.insert(gen, reader);
+        }
+
+        let curr_gen = gen_list.last().unwrap_or(&0) + 1;
+
+        let writer = Self::create_new_log(&path, curr_gen, &mut readers)?;
+
+        Ok(KvStore {
+            path,
+            indexmap,
+            readers,
+            writer,
+            curr_gen,
+            need_compact,
+        })
+
     }
 
-    fn recover_from_disk(&mut self) -> Result<()> {
-        let map = &mut self.diskmap;
-        let lastest_cursor = self.reader.load_log_from_disk(map)?;
-        self.writer.update_disk_cursor(lastest_cursor)
+    fn create_new_log(path: &Path, curr_gen: u64, readers: &mut HashMap<u64, KVDiskReader<File>>) -> Result<KVDiskWriter<File>> {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .read(true)
+            .append(true)
+            .open(logfile!(path, curr_gen))?;
+
+        let writer = KVDiskWriter::new(file.try_clone()?)?;
+        readers.insert(curr_gen, KVDiskReader::new(file)?);
+        
+
+        Ok(writer)
+    }
+
+    fn compaction(&mut self) -> Result<()> {
+
+        let gen_compact = self.curr_gen + 1;
+        let mut writer = Self::create_new_log(&self.path, gen_compact, &mut self.readers)?;
+
+
+        let mut pos = 0;
+        for entry in &mut self.indexmap.values_mut() {
+            let reader = self.readers
+                .get_mut(&entry.gen)
+                .expect("Cannot find the file reader. This should not happen!");
+            if reader.cursor != entry.pos {
+                reader.seek(SeekFrom::Start(entry.pos))?;
+            }
+            let mut read_from = reader.take(entry.len);
+            let len = io::copy(&mut read_from, &mut writer)?;
+            *entry = (gen_compact, pos, len).into();
+            pos += len;
+        }
+
+
+        let gen_newlog = self.curr_gen + 2;
+        self.writer = Self::create_new_log(&self.path, gen_newlog, &mut self.readers)?;
+
+        let old_files: Vec<u64> = self.readers
+                .keys()
+                .filter(|&gen| *gen <= self.curr_gen)
+                .map(|x| *x)
+                .collect();
+        
+        for gen in old_files {
+            fs::remove_file(logfile!(self.path, gen))?;
+            self.readers.remove(&gen);
+        }
+
+        self.curr_gen = gen_newlog;
+        self.need_compact = 0;
+        
+        Ok(())
     }
 
 }
 
+
+
+fn collect_file_identifiers(dir: &Path) -> Result<Vec<u64>> {
+    let mut fgen_list: Vec<u64> = fs::read_dir(&dir)?
+        .flat_map(|res| res.and_then(|entry| Ok(entry.path())))
+        .filter(|path| path.is_file() && path.extension() == Some("log".as_ref()))
+        .flat_map(|path| {
+            path.file_name()
+                .and_then(OsStr::to_str)
+                .map(|s| s.trim_end_matches(".log"))
+                .map(str::parse::<u64>)
+        })
+        .flatten()
+        .collect();
+    
+    fgen_list.sort_unstable();
+    Ok(fgen_list)
+} 
+
+#[derive(Debug, Clone)]
+struct DiskPos {
+    gen: u64,
+    pos: u64,
+    len: u64,
+}
+
+impl  DiskPos {
+    pub fn new() -> Self {
+        Self {
+            gen: 0,
+            len: 0,
+            pos: 0,
+        }
+    }
+}
+
+impl From<(u64, u64, u64)> for DiskPos {
+    fn from((gen, pos, len): (u64, u64, u64)) -> Self { 
+        Self {
+            gen,
+            pos,
+            len,
+        }
+    }
+}
+
 struct KVDiskReader<R: Read+Seek> {
     reader: BufReader<R>,
+    cursor: u64,
 }
 
 impl<R: Read+Seek> KVDiskReader<R> {
@@ -105,61 +234,79 @@ impl<R: Read+Seek> KVDiskReader<R> {
         Ok(
             Self {
             reader: reader,
+            cursor: 0,
         })
     }
 
-    pub fn read(&mut self, offset: u64) -> Result<String> {
+    pub fn read_entry(&mut self, offset: u64, len: u64) -> Result<String> {
         let ref_reader = self.reader.get_mut();
         ref_reader.seek(SeekFrom::Start(offset))?;
-        let mut stream = Deserializer::from_reader(ref_reader)
-                                                                .into_iter::<Methods>();
-        if let Some(cmd) = stream.next() {
-            match cmd? {
-                Methods::Set(action) => {
-                    return Ok(action.value);
-                }
-                Methods::Rm(_) => {
-                    return Err(format_err!("Reading a remove operation should not happen!"));
-                }
-                _ => {
-                    return Err(format_err!("this should not happen!"));
-                }
-            }
-        } 
-        return Err(format_err!("this should not happen!"));
+        let cmd_reader = ref_reader.take(len);
+
+        if let Methods::Set(action) = serde_json::from_reader(cmd_reader)? {
+            Ok(action.value)
+        } else {
+            Err(KVError::LogInConsistency)
+        }
     }
 
-    pub fn load_log_from_disk(&mut self, map: &mut HashMap<String, u64>) -> Result<u64> {
+    pub fn load_log_from_disk(&mut self, map: &mut HashMap<String, DiskPos>, fgen: u64) -> Result<u64> {
         let ref_reader = self.reader.get_mut();
         ref_reader.seek(SeekFrom::Start(0))?;
         let mut stream = Deserializer::from_reader(ref_reader).
                                                                 into_iter::<Methods>();
-        let mut old_offset;
+        let mut pos;
+        let mut need_compact = 0;
         loop {
-            old_offset = stream.byte_offset() as u64;
-            if let Some(cmd) = stream.next() {
-                match cmd? {
+            pos = stream.byte_offset() as u64;
+            if let Some(entry) = stream.next() {
+                let len = stream.byte_offset() as u64 - pos;
+                match entry? {
                     Methods::Set(action) => {
-                        map.insert(action.key, old_offset);
+                        let old_entry = map
+                            .insert(action.key, DiskPos { gen: fgen, pos, len })
+                            .unwrap_or(DiskPos::new());
+                        need_compact += old_entry.len;
                     }
                     Methods::Rm(action) => {
-                        map.remove(&action.key);
+                        let old_entry = map
+                            .insert(action.key, DiskPos { gen: fgen, pos, len })
+                            .unwrap_or(DiskPos::new());
+                        need_compact += old_entry.len;
                     }
                     _ => {}
                 }
                 continue
             } 
-            return  Ok(old_offset);
+            return  Ok(need_compact);
         };
+
+    }
+
+}
+
+impl<R: Read+Seek> Seek for KVDiskReader<R> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> { 
+        self.cursor = self.reader.seek(pos)?;
+        Ok(self.cursor)
     }
 }
+
+impl <R: Read+Seek> Read for KVDiskReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let res = self.reader.read(buf)?;
+        self.cursor += res as u64;
+        Ok(res)
+    }
+}
+
 
 struct KVDiskWriter<W: Write> {
     writer: BufWriter<W>,
     cursor: u64
 }
 
-impl<W: Write> KVDiskWriter<W> {
+impl<W: Write+Seek> KVDiskWriter<W> {
     pub fn new(inner: W) -> Result<Self> {
         let writer = BufWriter::new(inner);
         Ok(
@@ -169,19 +316,28 @@ impl<W: Write> KVDiskWriter<W> {
         })
     }
     
-    pub fn write(&mut self, serialized: String) -> Result<u64> {
-        let len = self.writer.write(serialized.as_bytes())?;
-        let old_offset = self.cursor;
-        self.cursor = old_offset + len as u64;
+    pub fn write_entry(&mut self, serialized: String) -> Result<(u64, u64)> {
+        let len = self.writer.write(serialized.as_bytes())? as u64;
+        let old_pos = self.cursor;
+        self.cursor = old_pos + len;
         self.writer.flush()?;
-        Ok(old_offset)
-    }
-
-    fn update_disk_cursor(&mut self, offset: u64) -> Result<()> {
-        self.cursor = offset;
-        Ok(())
+        Ok((old_pos, len))
     }
 }
+
+impl<W: Write+Seek> Write for KVDiskWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let res = self.writer.write(buf)?;
+        self.cursor += res as u64;
+        Ok(res) 
+    }
+
+    fn flush(&mut self) -> io::Result<()> { 
+        self.writer.flush()
+    }
+}
+
+
 
 
 pub mod cli_parser {
@@ -232,7 +388,11 @@ pub mod cli_parser {
     }
 }
 
-fn create_log_filename(dir_path: &Path) -> PathBuf {
-    let ret = dir_path.join(format!("KVStore.log"));
-    return ret;
+
+// extenable for future
+#[macro_export]
+macro_rules! logfile {
+    ($dir: expr, $fgen: expr) => {
+        $dir.join(format!("{}.log", $fgen))
+    }
 }
