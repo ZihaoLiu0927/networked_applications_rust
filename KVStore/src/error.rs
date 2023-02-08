@@ -29,5 +29,4 @@ impl From<io::Error> for KVError {
     }
 }
 
-
 pub type Result<T> = std::result::Result<T, KVError>;

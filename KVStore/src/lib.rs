@@ -1,5 +1,8 @@
 mod error;
+pub mod parser;
+
 pub use error::{KVError, Result};
+pub use parser::cli_parser::{Methods, SetAction, RemoveAction};
 
 use std::{collections::HashMap};
 use std::path::{PathBuf, Path};
@@ -7,10 +10,8 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, BufWriter, Write, Read, Seek, SeekFrom};
 use serde_json::Deserializer;
 use std::ffi::OsStr;
-use cli_parser::{Methods, SetAction, RemoveAction};
 
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024; // 1MB
-
 
 
 pub struct KvStore {
@@ -178,7 +179,6 @@ impl KvStore {
 }
 
 
-
 fn collect_file_identifiers(dir: &Path) -> Result<Vec<u64>> {
     let mut fgen_list: Vec<u64> = fs::read_dir(&dir)?
         .flat_map(|res| res.and_then(|entry| Ok(entry.path())))
@@ -337,56 +337,6 @@ impl<W: Write+Seek> Write for KVDiskWriter<W> {
     }
 }
 
-
-
-
-pub mod cli_parser {
-    use clap::{Parser, Subcommand};
-    use serde::{Serialize, Deserialize};
-
-    #[derive(Parser, Debug)]
-    #[clap(author = env!("CARGO_PKG_AUTHORS"), 
-           version = env!("CARGO_PKG_VERSION"), 
-           about = env!("CARGO_PKG_DESCRIPTION"), 
-           name = env!("CARGO_PKG_NAME"))]
-    pub struct Cli {
-        #[clap(subcommand)]
-        pub params: Methods,
-    }
-
-    impl Cli {
-        pub fn parse_cli() -> Self {
-            Self::parse()
-        }
-    }
-
-    #[derive(Subcommand, Debug, Serialize, Deserialize)]
-    pub enum Methods {
-        Set(SetAction),
-        Get(GetAction),
-        Rm(RemoveAction),
-    }
-
-    #[derive(Debug, Parser, Serialize, Deserialize)]
-    pub struct SetAction {
-        #[clap(index = 1)]
-        pub key: String,
-        #[clap(index = 2)]
-        pub value: String,
-    }
-
-    #[derive(Debug, Parser, Serialize, Deserialize)]
-    pub struct GetAction {
-        #[clap(index = 1)]
-        pub key: String,
-    }
-
-    #[derive(Debug, Parser, Serialize, Deserialize)]
-    pub struct RemoveAction {
-        #[clap(index = 1)]
-        pub key: String,
-    }
-}
 
 
 // extenable for future

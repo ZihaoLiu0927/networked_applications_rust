@@ -1,6 +1,6 @@
 use std::{process};
 use kvs::{KvStore, Result};
-use kvs::cli_parser::*;
+use kvs::parser::cli_parser::*;
 use std::env::current_dir;
 
 fn main() -> Result<()> {
