@@ -15,7 +15,7 @@ fn main() -> Result<()> {
         },
         Methods::Get(action) => {
             if let Some(res) = kvs.get(String::from(action.key))? {
-                print!("{}", res);
+                println!("{}", res);
             } else {
                 println!("Key not found");
             }
