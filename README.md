@@ -24,7 +24,7 @@ This is a open source project for Rust lovers and learnners as part of the PingC
   - [x] Implement pluggable backends with traits
   - [x] Benchmark the hand-written backend against sled
 
--[ ] Create a multi-threaded, persistent key/value store server and client with synchronous networking over a custom protocol.
+- [ ] Create a multi-threaded, persistent key/value store server and client with synchronous networking over a custom protocol.
   - [ ] Write a simple thread pool
   - [ ] Use channels for cross-thread communication
   - [ ] Share data structures with locks
