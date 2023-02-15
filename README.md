@@ -1,5 +1,5 @@
 # networked_applications_rust
-This is a open source project for Rust lovers and learnners as part of the PingCap talent(https://github.com/pingcap/talent-plan). Over a series of projects, the Rust learners will  build a single networked, multithreaded, and asynchronous Rust application. Creating this application, a key-value database, will provide opportunities to exercise the best of the crate ecosystem, a variety of concurrent data types, the world of async Rust, interesting language features, and important Rust tools.
+This is a open source project for Rust lovers and learnners as part of the PingCap talent plan project(https://github.com/pingcap/talent-plan). Over a series of projects, the Rust learners will  build a single networked, multithreaded, and asynchronous Rust application. Creating this application, a key-value database, will provide opportunities to exercise the best of the crate ecosystem, a variety of concurrent data types, the world of async Rust, interesting language features, and important Rust tools.
 
 ## Content
 
