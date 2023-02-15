@@ -13,7 +13,6 @@ tempfile = "3.3.0"
 walkdir = "2.3.2"
 rand = "0.8.5"
 
-
 [dependencies]
 clap = {version = "4.1.4",  features = ["derive"]}
 failure = {version = "0.1.8", features = ["derive"]}
@@ -26,3 +25,6 @@ slog-json = "2.6.1"
 slog-async = "2.7.0"
 sled = "0.34.7"
 
+[[bench]]
+name = "benchmark1"
+harness = false
