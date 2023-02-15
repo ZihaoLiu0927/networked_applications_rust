@@ -1,33 +1,34 @@
-use std::{process};
-use kvs::parser::client_parser;
-use std::env::current_dir;
-use kvs::Result;
+use std::net::SocketAddr;
+use kvs::{parser::client_parser, client::Client, Result, common::{Methods, GetAction, SetAction, RemoveAction}};
 
 
 fn main() -> Result<()> {
 
     let cli = client_parser::Cli::parse_cli();
-    dbg!(cli);
 
+    // let socket: SocketAddr = cli.addr.parse()?;
 
-    // let mut kvs = KvStore::open(current_dir()?)?;
-    // match cli.params {
-    //     Methods::Set(action) => {
-    //         kvs.set(String::from(action.key), String::from(action.value))?;
-    //     },
-    //     Methods::Get(action) => {
-    //         if let Some(res) = kvs.get(String::from(action.key))? {
-    //             println!("{}", res);
-    //         } else {
-    //             println!("Key not found");
-    //         }
-    //     }
-    //     Methods::Rm(action) => {
-    //         kvs.remove(String::from(action.key)).unwrap_or_else(|_| {
-    //             println!("Key not found");
-    //             process::exit(1);
-    //         });
-    //     }
-    // }
+    // let mut client = Client::new(socket)?;
+
+    match cli.params {
+        Methods::Get(GetAction{key, addr}) => {
+            let socket: SocketAddr = addr.parse()?;
+            let mut client = Client::new(socket)?;
+            let response = client.get(key)?;
+            println!("{}", response);
+        }
+        Methods::Set(SetAction{key, value, addr}) => {
+            let socket: SocketAddr = addr.parse()?;
+            let mut client = Client::new(socket)?;
+            client.set(key, value)?;
+        }
+        Methods::Rm(RemoveAction {key, addr}) => {
+            let socket: SocketAddr = addr.parse()?;
+            let mut client = Client::new(socket)?;
+            client.remove(key)?;
+
+        }
+    }
+
     Ok(())
 }

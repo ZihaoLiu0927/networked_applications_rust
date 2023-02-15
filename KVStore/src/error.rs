@@ -1,9 +1,14 @@
 use failure::Fail;
-use slog::KV;
-use std::{io, net, fmt};
+use std::{io, net, fmt, str::Utf8Error};
 
+
+// error handling. Any error will be converted to the same type: KVError 
+// to facilitate the development
 #[derive(Debug, Fail)]
 pub enum KVError {
+    #[fail(display = "")]
+    String(String),
+
     #[fail(display = "Error: an io error happened!")]
     Io,
     
@@ -30,8 +35,16 @@ pub enum KVError {
 
     #[fail(display = "Error: display trait error happened!")]
     DisplayError,
-}
 
+    #[fail(display = "Error: cannot create client instance!")]
+    FailClientInstance,
+
+    #[fail(display = "Error: from request from client")]
+    RequestError,
+
+    #[fail(display = "Error: sled error")]
+    SledError,
+}
 
 impl From<serde_json::Error> for KVError {
     fn from(_err: serde_json::Error) -> KVError { 
@@ -54,6 +67,18 @@ impl From<net::AddrParseError> for KVError {
 impl From<fmt::Error> for KVError {
     fn from(_err: fmt::Error) -> KVError {
         KVError::DisplayError
+    }
+}
+
+impl From<sled::Error> for KVError {
+    fn from(_err: sled::Error) -> KVError {
+        KVError::SledError
+    }
+}
+
+impl From<Utf8Error> for KVError {
+    fn from(_err: Utf8Error) -> KVError {
+        KVError::SledError
     }
 }
 

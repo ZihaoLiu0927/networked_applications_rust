@@ -1,13 +1,13 @@
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
-use std::path::Path;
 use std::io::{self, Read, Write, SeekFrom, Seek, BufReader, BufWriter};
 use std::ffi::OsStr;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
 
-use crate::{common::*, KvsEngine};
+use crate::{KvsEngine};
 use crate::error::{KVError, Result};
 use crate::logfile;
 
@@ -121,17 +121,15 @@ impl KvsEngine for KvStore {
         }
 
         if let Some(_) =  self.indexmap.get(&key) {
-            let command = Methods::Rm(RemoveAction {
-                key: key.clone(), 
-            });
+            let command = Command::Remove { key: key.clone() };
             let serialized = serde_json::to_string_pretty(&command)?;
             let (pos, len) = self.writer.write_entry(serialized)?;
-            let command = DiskPos {
+            let diskpos = DiskPos {
                 gen: self.curr_gen,
                 pos,
                 len,
             };
-            self.indexmap.insert(key, command);
+            self.indexmap.insert(key, diskpos);
 
         } else {
             return Err(KVError::KeyNoExist)
@@ -140,19 +138,19 @@ impl KvsEngine for KvStore {
     }
 
     fn set(&mut self, key: String, val: String) -> Result<()> {
-        let command = Methods::Set(SetAction {
+        let command = Command::Set {
             key: key.clone(), 
             value: val.clone(),
-        });
+        };
         let serialized = serde_json::to_string_pretty(&command)?;
         let (pos, len) = self.writer.write_entry(serialized)?;
-        let command = DiskPos {
+        let diskpos = DiskPos {
             gen: self.curr_gen,
             pos,
             len,
         };
 
-        let stale_len = self.indexmap.insert(key, command)
+        let stale_len = self.indexmap.insert(key, diskpos)
             .unwrap_or(DiskPos::new()).len;
         self.need_compact += stale_len;
 
@@ -196,6 +194,15 @@ fn collect_file_identifiers(dir: &Path) -> Result<Vec<u64>> {
     fgen_list.sort_unstable();
     Ok(fgen_list)
 } 
+
+
+/// Struct representing a command
+#[derive(Serialize, Deserialize, Debug)]
+enum Command {
+    Set { key: String, value: String },
+    Remove { key: String },
+}
+
 
 #[derive(Debug, Clone)]
 struct DiskPos {
@@ -244,8 +251,8 @@ impl<R: Read+Seek> KVDiskReader<R> {
         ref_reader.seek(SeekFrom::Start(offset))?;
         let cmd_reader = ref_reader.take(len);
 
-        if let Methods::Set(action) = serde_json::from_reader(cmd_reader)? {
-            Ok(action.value)
+        if let Command::Set {key: _k, value: v} = serde_json::from_reader(cmd_reader)? {
+            Ok(v)
         } else {
             Err(KVError::LogInConsistency)
         }
@@ -255,7 +262,7 @@ impl<R: Read+Seek> KVDiskReader<R> {
         let ref_reader = self.reader.get_mut();
         ref_reader.seek(SeekFrom::Start(0))?;
         let mut stream = Deserializer::from_reader(ref_reader).
-                                                                into_iter::<Methods>();
+                                                                into_iter::<Command>();
         let mut pos;
         let mut need_compact = 0;
         loop {
@@ -263,23 +270,22 @@ impl<R: Read+Seek> KVDiskReader<R> {
             if let Some(entry) = stream.next() {
                 let len = stream.byte_offset() as u64 - pos;
                 match entry? {
-                    Methods::Set(action) => {
+                    Command::Set{key: k, value: _v} => {
                         let old_entry = map
-                            .insert(action.key, DiskPos { gen: fgen, pos, len })
+                            .insert(k, DiskPos { gen: fgen, pos, len })
                             .unwrap_or(DiskPos::new());
                         need_compact += old_entry.len;
                     }
-                    Methods::Rm(action) => {
+                    Command::Remove{key: k} => {
                         let old_entry = map
-                            .insert(action.key, DiskPos { gen: fgen, pos, len })
+                            .insert(k, DiskPos { gen: fgen, pos, len })
                             .unwrap_or(DiskPos::new());
                         need_compact += old_entry.len;
                     }
-                    _ => {}
                 }
                 continue
             } 
-            return  Ok(need_compact);
+            return Ok(need_compact);
         };
 
     }
