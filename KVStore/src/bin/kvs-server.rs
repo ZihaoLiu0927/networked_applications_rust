@@ -1,22 +1,26 @@
-use kvs::{Result};
-use kvs::parser::server_parser;
 use slog::Logger;
-use std::net::SocketAddr;
-use std::env::current_dir;
-use std::fs::{self};
-use std::sync::Mutex;
 
-use kvs::error::{KVError};
-use kvs::common::*;
-use kvs::{KvStore, SledKvsEngine, KvsEngine};
-use kvs::server::Server;
-
+use kvs::{
+    Result,
+    KvStore, 
+    SledKvsEngine, 
+    KvsEngine,
+    parser::server_parser,
+    error::KVError,
+    common::*,
+    server::Server,
+};
+use std::{
+    fs,
+    net::SocketAddr,
+    sync::Mutex,
+    env::current_dir,
+};
 
 extern crate slog;
 extern crate slog_term;
 extern crate slog_json;
 extern crate slog_async;
-
 use crate::slog::Drain;
 
 const ENGINE_KVS: &str = "kvs";

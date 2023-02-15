@@ -1,13 +1,13 @@
-use crate::{common::{Request, GetResponse, SetResponse, RmResponse}};
+use crate::common::{Request, GetResponse, SetResponse, RmResponse};
 use crate::error::{KVError,Result};
 
-use std::net::{SocketAddr, TcpStream};
-use std::io::{BufReader, BufWriter, Write};
-
 use serde::Deserialize;
-use serde_json::Deserializer;
-use serde_json::de::IoRead;
+use serde_json::{Deserializer, de::IoRead};
 
+use std::{
+    net::{SocketAddr, TcpStream},
+    io::{BufReader, BufWriter, Write}
+};
 
 pub struct Client {
     reader: Deserializer<IoRead<BufReader<TcpStream>>>,

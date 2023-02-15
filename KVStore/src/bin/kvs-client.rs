@@ -1,5 +1,9 @@
 use std::net::SocketAddr;
-use kvs::{parser::client_parser, client::Client, Result, common::{Methods, GetAction, SetAction, RemoveAction}};
+use kvs::{
+    Result,
+    parser::client_parser, client::Client, 
+    common::{Methods, GetAction, SetAction, RemoveAction}
+};
 
 
 fn main() -> Result<()> {

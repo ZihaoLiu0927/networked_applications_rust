@@ -1,9 +1,13 @@
-use crate::error::{Result};
-use std::path::{PathBuf};
-use std::str;
-use crate::{KvsEngine, KVError};
-
 use sled::Db;
+
+use crate::{
+    KvsEngine, KVError,
+    error::Result
+};
+use std::{
+    path::PathBuf,
+    str,
+};
 
 pub struct SledKvsEngine {
     db: Db

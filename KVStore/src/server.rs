@@ -1,11 +1,13 @@
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::io::{BufReader, BufWriter, Write};
-
-use serde_json::Deserializer;
-
 use crate::{engines::KvsEngine, common::{GetResponse, SetResponse, RmResponse}};
 use crate::error::Result;
 use crate::common::Request;
+
+use serde_json::Deserializer;
+
+use std::{
+    net::{SocketAddr, TcpListener, TcpStream},
+    io::{BufReader, BufWriter, Write},
+};
 
 // Server is a runable server instance with pluggale engine
 pub struct Server<E: KvsEngine> {

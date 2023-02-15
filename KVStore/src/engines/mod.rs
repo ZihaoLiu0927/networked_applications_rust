@@ -1,6 +1,5 @@
 use crate::Result;
 
-
 pub trait KvsEngine {
     /// Sets the value of a string key to a string. 
     /// Return an error if the value is not written successfully.

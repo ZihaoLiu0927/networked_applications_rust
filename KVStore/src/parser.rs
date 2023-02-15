@@ -1,6 +1,6 @@
 use crate::common::Engine;
-use clap::{self, Parser};
 use crate::common::Methods;
+use clap::{self, Parser};
 
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";
 const DEFAULT_ENGINE: Engine = Engine::Kvs;

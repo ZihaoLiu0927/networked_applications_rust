@@ -1,7 +1,9 @@
 use clap::{self, Subcommand, Parser};
 use serde::{Deserialize, Serialize};
-use std::result::Result;
-use std::fmt::{self,Display};
+use std::{
+    result::Result,
+    fmt::{self,Display}
+};
 
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";
 
