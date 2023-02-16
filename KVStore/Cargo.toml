@@ -24,7 +24,9 @@ slog-term = "2.9.0"
 slog-json = "2.6.1"
 slog-async = "2.7.0"
 sled = "0.34.7"
+gnuplot = "0.0.37"
+plotters = "0.3.4"
 
 [[bench]]
-name = "benchmark1"
+name = "benchmark"
 harness = false

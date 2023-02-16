@@ -10,10 +10,6 @@ fn main() -> Result<()> {
 
     let cli = client_parser::Cli::parse_cli();
 
-    // let socket: SocketAddr = cli.addr.parse()?;
-
-    // let mut client = Client::new(socket)?;
-
     match cli.params {
         Methods::Get(GetAction{key, addr}) => {
             let socket: SocketAddr = addr.parse()?;
