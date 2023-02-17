@@ -4,6 +4,10 @@ use crate::logfile;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
+use std::{
+    sync::{Arc, Mutex}
+};
+
 
 use std::{
     ffi::OsStr,
@@ -15,14 +19,17 @@ use std::{
 
 
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024; // 1MB
+const UNABLE_HOLD_LOCK: &str = "unable to hold lock.";
 
+
+#[derive(Clone)]
 pub struct KvStore {
     path: PathBuf,
-    indexmap: HashMap<String, DiskPos>,
-    readers: HashMap<u64, KVDiskReader<File>>,
-    writer: KVDiskWriter<File>,
+    indexmap: Arc<Mutex<HashMap<String, DiskPos>>>,
+    readers: Arc<Mutex<HashMap<u64, KVDiskReader<File>>>>,
+    writer: Arc<Mutex<KVDiskWriter<File>>>,
     curr_gen: u64,
-    need_compact: u64,
+    need_compact: Arc<Mutex<u64>>,
 }
 
 impl KvStore {
@@ -31,21 +38,30 @@ impl KvStore {
         let path = path.into();
         fs::create_dir_all(&path)?;
 
-        let mut indexmap: HashMap<String, DiskPos> = HashMap::new();
+        let mut indexmap: Arc<Mutex<HashMap<String, DiskPos>>> = Arc::new(Mutex::new(HashMap::new()));
         let mut need_compact = 0;
 
-        let mut readers: HashMap<u64, KVDiskReader<File>> = HashMap::new(); 
+        let readers = Arc::new(Mutex::new(HashMap::new())); 
         let gen_list = collect_file_identifiers(&path)?;
 
         for &gen in &gen_list {
             let mut reader = KVDiskReader::new(File::open(logfile!(path, gen))?)?;
             need_compact += reader.load_log_from_disk(&mut indexmap, gen)?;
-            readers.insert(gen, reader);
+            readers
+                .lock()
+                .expect(UNABLE_HOLD_LOCK)
+                .insert(gen, reader);
         }
 
-        let curr_gen = gen_list.last().unwrap_or(&0) + 1;
+        let curr_gen = gen_list
+            .last()
+            .unwrap_or(&0) + 1;
 
-        let writer = Self::create_new_log(&path, curr_gen, &mut readers)?;
+        let writer = Arc::new(Mutex::new(
+            Self::create_new_log(&path, curr_gen, &readers)?
+        ));
+
+        let need_compact = Arc::new(Mutex::new(need_compact));
 
         Ok(KvStore {
             path,
@@ -58,7 +74,7 @@ impl KvStore {
 
     }
 
-    fn create_new_log(path: &Path, curr_gen: u64, readers: &mut HashMap<u64, KVDiskReader<File>>) -> Result<KVDiskWriter<File>> {
+    fn create_new_log(path: &Path, curr_gen: u64, readers: &Arc<Mutex<HashMap<u64, KVDiskReader<File>>>>) -> Result<KVDiskWriter<File>> {
         let file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -67,23 +83,27 @@ impl KvStore {
             .open(logfile!(path, curr_gen))?;
 
         let writer = KVDiskWriter::new(file.try_clone()?)?;
-        readers.insert(curr_gen, KVDiskReader::new(file)?);
+        readers
+            .lock()
+            .expect(UNABLE_HOLD_LOCK)
+            .insert(curr_gen, KVDiskReader::new(file)?);
         
-
         Ok(writer)
     }
 
     fn compaction(&mut self) -> Result<()> {
 
         let gen_compact = self.curr_gen + 1;
-        let mut writer = Self::create_new_log(&self.path, gen_compact, &mut self.readers)?;
-
+        let mut writer = Self::create_new_log(&self.path, gen_compact, &self.readers)?;
 
         let mut pos = 0;
-        for entry in &mut self.indexmap.values_mut() {
-            let reader = self.readers
-                .get_mut(&entry.gen)
-                .expect("Cannot find the file reader. This should not happen!");
+        for entry in &mut self.indexmap.lock().expect(UNABLE_HOLD_LOCK).values_mut() {
+            let mut reader_locked = self.readers
+                .lock()
+                .expect(UNABLE_HOLD_LOCK);
+
+            let reader = reader_locked.get_mut(&entry.gen).expect(UNABLE_HOLD_LOCK);
+
             if reader.cursor != entry.pos {
                 reader.seek(SeekFrom::Start(entry.pos))?;
             }
@@ -95,9 +115,13 @@ impl KvStore {
 
 
         let gen_newlog = self.curr_gen + 2;
-        self.writer = Self::create_new_log(&self.path, gen_newlog, &mut self.readers)?;
+        self.writer = Arc::new(Mutex::new(
+            Self::create_new_log(&self.path, gen_newlog, &self.readers)?
+        ));
 
         let old_files: Vec<u64> = self.readers
+                .lock()
+                .expect(UNABLE_HOLD_LOCK)
                 .keys()
                 .filter(|&gen| *gen <= self.curr_gen)
                 .map(|x| *x)
@@ -105,11 +129,14 @@ impl KvStore {
         
         for gen in old_files {
             fs::remove_file(logfile!(self.path, gen))?;
-            self.readers.remove(&gen);
+            self.readers.
+                lock().
+                expect(UNABLE_HOLD_LOCK)
+                .remove(&gen);
         }
 
         self.curr_gen = gen_newlog;
-        self.need_compact = 0;
+        *self.need_compact.lock().expect(UNABLE_HOLD_LOCK) = 0;
         
         Ok(())
     }
@@ -117,22 +144,29 @@ impl KvStore {
 }
 
 impl KvsEngine for KvStore {
-    fn remove(&mut self, key: String) -> Result<()> {
+    fn remove(&self, key: String) -> Result<()> {
         let check = self.get(key.clone())?;
         if check.is_none() {
             return Err(KVError::KeyNoExist)
         }
 
-        if let Some(_) =  self.indexmap.get(&key) {
+        if let Some(_) =  self.indexmap.lock().expect(UNABLE_HOLD_LOCK).get(&key) {
             let command = Command::Remove { key: key.clone() };
             let serialized = serde_json::to_string_pretty(&command)?;
-            let (pos, len) = self.writer.write_entry(serialized)?;
+            let (pos, len) = self.writer
+                .lock()
+                .expect(UNABLE_HOLD_LOCK)
+                .write_entry(serialized)?;
+
             let diskpos = DiskPos {
                 gen: self.curr_gen,
                 pos,
                 len,
             };
-            self.indexmap.insert(key, diskpos);
+            self.indexmap
+                .lock()
+                .expect(UNABLE_HOLD_LOCK)
+                .insert(key, diskpos);
 
         } else {
             return Err(KVError::KeyNoExist)
@@ -140,39 +174,55 @@ impl KvsEngine for KvStore {
         Ok(())
     }
 
-    fn set(&mut self, key: String, val: String) -> Result<()> {
+    fn set(&self, key: String, val: String) -> Result<()> {
         let command = Command::Set {
             key: key.clone(), 
             value: val.clone(),
         };
         let serialized = serde_json::to_string_pretty(&command)?;
-        let (pos, len) = self.writer.write_entry(serialized)?;
+        let (pos, len) = self.writer
+            .lock()
+            .expect(UNABLE_HOLD_LOCK)
+            .write_entry(serialized)?;
+
         let diskpos = DiskPos {
             gen: self.curr_gen,
             pos,
             len,
         };
 
-        let stale_len = self.indexmap.insert(key, diskpos)
+        let stale_len = self.indexmap
+            .lock()
+            .expect(UNABLE_HOLD_LOCK)
+            .insert(key, diskpos)
             .unwrap_or(DiskPos::new()).len;
-        self.need_compact += stale_len;
 
-        if self.need_compact > COMPACTION_THRESHOLD {
+        let mut size = self.need_compact.lock().expect(UNABLE_HOLD_LOCK);
+
+        *size += stale_len;
+
+        if *size > COMPACTION_THRESHOLD {
             self.compaction()?;
         }
 
         Ok(())
     }
 
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        if let Some(val) = self.indexmap.get(&key) {
-            let reader = self.readers
-                .get_mut(&val.gen)
-                .expect("Cannot find the file reader. This should not happen!");
-            
-            match reader.read_entry(val.pos, val.len) {
-                Ok(s) => Ok(Some(s)),
-                Err(_) => Ok(None),
+    fn get(&self, key: String) -> Result<Option<String>> {
+        if let Some(val) = self.indexmap
+            .lock()
+            .expect(UNABLE_HOLD_LOCK).get(&key) {
+                let mut reader_locked = self.readers
+                    .lock()
+                    .expect(UNABLE_HOLD_LOCK);
+
+
+                let reader = reader_locked.get_mut(&val.gen)
+                    .expect("unable to get reference");
+                
+                match reader.read_entry(val.pos, val.len) {
+                    Ok(s) => Ok(Some(s)),
+                    Err(_) => Ok(None),
             }   
         } else {
             Ok(None)
@@ -261,7 +311,7 @@ impl<R: Read+Seek> KVDiskReader<R> {
         }
     }
 
-    pub fn load_log_from_disk(&mut self, map: &mut HashMap<String, DiskPos>, fgen: u64) -> Result<u64> {
+    pub fn load_log_from_disk(&mut self, map: &mut Arc<Mutex<HashMap<String, DiskPos>>>, fgen: u64) -> Result<u64> {
         let ref_reader = self.reader.get_mut();
         ref_reader.seek(SeekFrom::Start(0))?;
         let mut stream = Deserializer::from_reader(ref_reader).
@@ -275,12 +325,16 @@ impl<R: Read+Seek> KVDiskReader<R> {
                 match entry? {
                     Command::Set{key: k, value: _v} => {
                         let old_entry = map
+                            .lock()
+                            .expect("unable to hold lock.")
                             .insert(k, DiskPos { gen: fgen, pos, len })
                             .unwrap_or(DiskPos::new());
                         need_compact += old_entry.len;
                     }
                     Command::Remove{key: k} => {
                         let old_entry = map
+                            .lock()
+                            .expect("unable to hold lock.")
                             .insert(k, DiskPos { gen: fgen, pos, len })
                             .unwrap_or(DiskPos::new());
                         need_compact += old_entry.len;
