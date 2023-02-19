@@ -8,4 +8,4 @@ pub mod thread_pool;
 
 pub use error::{KVError, Result};
 pub use engines::{KvsEngine, KvStore, SledKvsEngine};
-pub use thread_pool::{ThreadPool, NaiveThreadPool};
+pub use thread_pool::ThreadPool;

@@ -3,6 +3,8 @@ use crate::error::Result;
 use crate::common::Request;
 use crate::thread_pool::*;
 
+use std::sync::{Arc, Mutex};
+
 use serde_json::Deserializer;
 
 use std::{
@@ -11,29 +13,29 @@ use std::{
 };
 
 // Server is a runable server instance with pluggale engine
-pub struct Server<E: KvsEngine> {
+pub struct Server<E: KvsEngine, P: ThreadPool> {
     engine: E,
     listener: TcpListener,
+    pool: P,
 }
 
 // Server is a runable server instance with pluggale engine
 // implement a new() and run() method to it
-impl<E: KvsEngine> Server<E> {
+impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
 
     // create a new Server instance
-    pub fn new(engine: E, addr: SocketAddr) -> Result<Self> {
+    pub fn new(engine: E, addr: SocketAddr, pool: P) -> Result<Self> {
         let listener = TcpListener::bind(addr)?;
 
         Ok(Self {
             engine,
-            listener
+            listener,
+            pool,
         })
     }
 
     // run starts to listen a port and response any requests from client side
     pub fn run(&mut self) -> Result<()> {
-
-        let thread_pool = NaiveThreadPool::new(6)?;
 
         let listener = self.listener.try_clone()?;
 
@@ -41,12 +43,19 @@ impl<E: KvsEngine> Server<E> {
 
             let engine = self.engine.clone();
 
-            let stream = stream?;
-            thread_pool.spawn(move || {
-                if let Err(e) =  request_handler(engine, stream) {
-                    eprintln!("Error in request handling: {}", e);
+            match stream {
+                Ok(stream) => {
+                    self.pool.spawn(move || {
+                        if let Err(e) =  request_handler(engine, stream) {
+                            eprintln!("Error in request handling: {}", e);
+                        }
+                    });
                 }
-            });
+
+                Err(e) => {
+                    eprintln!("connection error: {}", e);
+                }
+            }
         }
         Ok(())
     }

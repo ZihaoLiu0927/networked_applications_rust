@@ -20,7 +20,7 @@ fn criterion_benchmark_write(c: &mut Criterion) {
                 let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
                 engine
             },
-            |mut sled| {
+            |sled| {
                 for i in &range {
                     sled.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
@@ -35,7 +35,7 @@ fn criterion_benchmark_write(c: &mut Criterion) {
                 let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
                 engine
             },
-            |mut sled| {
+            |sled| {
                 for i in &range {
                     sled.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
