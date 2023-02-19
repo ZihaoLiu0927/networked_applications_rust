@@ -5,9 +5,8 @@ use crate::logfile;
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
-
 
 use std::{
     cell::RefCell,
@@ -60,7 +59,7 @@ impl KvStore {
             .last()
             .unwrap_or(&0) + 1;
 
-        let writer = Self::create_new_log(&path, curr_gen, &readers)?;
+        let writer = create_new_log(&path, curr_gen, &readers)?;
 
 
         let share_kv = SharedKvStore {
@@ -80,67 +79,6 @@ impl KvStore {
 
     }
 
-    fn create_new_log(path: &Path, curr_gen: u64, readers: &RefCell<HashMap<u64, KVDiskReader<File>>>) -> Result<KVDiskWriter<File>> {
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .read(true)
-            .append(true)
-            .open(logfile!(path, curr_gen))?;
-
-        let writer = KVDiskWriter::new(file.try_clone()?)?;
-        readers.borrow_mut().insert(curr_gen, KVDiskReader::new(file)?);
-        
-        Ok(writer)
-    }
-
-    fn compaction(&self) -> Result<()> {
-
-        let mut kvstore_locked = self.0.lock().expect(UNABLE_HOLD_LOCK);
-
-        let gen_compact = kvstore_locked.curr_gen + 1;
-        let mut writer = Self::create_new_log(&kvstore_locked.path, gen_compact, &kvstore_locked.readers)?;
-
-        let mut pos = 0;
-        for entry in kvstore_locked.indexmap.borrow_mut().iter() {
-
-            let mut reader_ref = kvstore_locked.readers.borrow_mut();
-            
-            let reader = reader_ref.get_mut(&entry.1.gen).expect("unable to get reference");
-
-            if reader.cursor != entry.1.pos {
-                reader.seek(SeekFrom::Start(entry.1.pos))?;
-            }
-            let mut read_from = reader.take(entry.1.len);
-            let len = io::copy(&mut read_from, &mut writer)?;
-
-            kvstore_locked.indexmap.borrow_mut().insert(entry.0.clone(), (gen_compact, pos, len).into());
-
-            //*(entry.1) = (gen_compact, pos, len).into();
-
-            pos += len;
-        }
-
-
-        let gen_newlog = kvstore_locked.curr_gen + 2;
-        kvstore_locked.writer = RefCell::new(Self::create_new_log(&kvstore_locked.path, gen_newlog, &kvstore_locked.readers)?);
-
-        let old_files: Vec<u64> = kvstore_locked.readers.borrow_mut()
-                .keys()
-                .filter(|&gen| *gen <= kvstore_locked.curr_gen)
-                .map(|x| *x)
-                .collect();
-        
-        for gen in old_files {
-            fs::remove_file(logfile!(kvstore_locked.path, gen))?;
-            kvstore_locked.readers.borrow_mut().remove(&gen);
-        }
-
-        kvstore_locked.curr_gen = gen_newlog;
-        kvstore_locked.need_compact = 0;
-        
-        Ok(())
-    }
 
 }
 
@@ -149,12 +87,13 @@ impl KvsEngine for KvStore {
 
         let kvstore_locked = self.0.lock().expect(UNABLE_HOLD_LOCK);
 
-        let check = self.get(key.clone())?;
-        if check.is_none() {
-            return Err(KVError::KeyNoExist)
-        }
+        let mut indexmap = kvstore_locked.indexmap.borrow_mut();
 
-        if let Some(_) =  kvstore_locked.indexmap.borrow().get(&key) {
+        if !indexmap.contains_key(&key) {
+            return Err(KVError::KeyNoExist);
+        }
+            
+        if let Some(_) =  indexmap.get(&key) {
             let command = Command::Remove { key: key.clone() };
             let serialized = serde_json::to_string_pretty(&command)?;
             let (pos, len) = kvstore_locked.writer.borrow_mut().write_entry(serialized)?;
@@ -164,7 +103,7 @@ impl KvsEngine for KvStore {
                 pos,
                 len,
             };
-            kvstore_locked.indexmap.borrow_mut().insert(key, diskpos);
+            indexmap.insert(key, diskpos);
 
         } else {
             return Err(KVError::KeyNoExist)
@@ -197,7 +136,7 @@ impl KvsEngine for KvStore {
         kvstore_locked.need_compact += stale_len;
 
         if kvstore_locked.need_compact > COMPACTION_THRESHOLD {
-            self.compaction()?;
+            compaction(&mut kvstore_locked)?;
         }
 
         Ok(())
@@ -207,7 +146,7 @@ impl KvsEngine for KvStore {
 
         let kvstore_locked = self.0.lock().expect(UNABLE_HOLD_LOCK);
 
-        if let Some(val) = kvstore_locked.indexmap.borrow_mut().get(&key) {
+        if let Some(val) = kvstore_locked.indexmap.borrow().get(&key) {
 
                 let mut reader_ref = kvstore_locked.readers.borrow_mut();
                 
@@ -390,3 +329,65 @@ impl<W: Write+Seek> Write for KVDiskWriter<W> {
     }
 }
 
+
+fn create_new_log(path: &Path, curr_gen: u64, readers: &RefCell<HashMap<u64, KVDiskReader<File>>>) -> Result<KVDiskWriter<File>> {
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .read(true)
+        .append(true)
+        .open(logfile!(path, curr_gen))?;
+
+    let writer = KVDiskWriter::new(file.try_clone()?)?;
+    readers.borrow_mut().insert(curr_gen, KVDiskReader::new(file)?);
+    
+    Ok(writer)
+}
+
+fn compaction(kvs: &mut MutexGuard<SharedKvStore>) -> Result<()> {
+
+    let gen_compact = kvs.curr_gen + 1;
+    let mut writer = create_new_log(&kvs.path, gen_compact, &kvs.readers)?;
+    //let mut indexmap = kvs.indexmap.borrow_mut();
+
+    let mut pos = 0;
+    for entry in kvs.indexmap.borrow_mut().iter_mut() {
+
+        let mut reader_ref = kvs.readers.borrow_mut();
+        
+        let reader = reader_ref.get_mut(&entry.1.gen).expect("unable to get reference");
+
+        if reader.cursor != entry.1.pos {
+            reader.seek(SeekFrom::Start(entry.1.pos))?;
+        }
+        let mut read_from = reader.take(entry.1.len);
+        let len = io::copy(&mut read_from, &mut writer)?;
+
+        //indexmap.insert(entry.0.clone(), (gen_compact, pos, len).into());
+
+        *(entry.1) = (gen_compact, pos, len).into();
+
+        pos += len;
+    }
+
+    writer.flush()?;
+
+    let gen_newlog = kvs.curr_gen + 2;
+    kvs.writer = RefCell::new(create_new_log(&kvs.path, gen_newlog, &kvs.readers)?);
+
+    let old_files: Vec<u64> = kvs.readers.borrow_mut()
+            .keys()
+            .filter(|&gen| *gen <= kvs.curr_gen)
+            .map(|x| *x)
+            .collect();
+    
+    for gen in old_files {
+        fs::remove_file(logfile!(kvs.path, gen))?;
+        kvs.readers.borrow_mut().remove(&gen);
+    }
+
+    kvs.curr_gen = gen_newlog;
+    kvs.need_compact = 0;
+    
+    Ok(())
+}

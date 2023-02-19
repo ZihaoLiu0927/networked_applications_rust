@@ -8,7 +8,7 @@ use kvs::{
     parser::server_parser,
     error::KVError,
     common::*,
-    server::Server, ThreadPool, thread_pool::SharedQueueThreadPool,
+    server::Server, ThreadPool, thread_pool::{SharedQueueThreadPool, RayonThreadPool},
 };
 use std::{
     fs,
@@ -58,7 +58,7 @@ fn run(engine: Engine, addr: SocketAddr, logger: Logger) -> Result<()> {
 
     fs::write(current_dir()?.join(ENGINE_FILE), format!("{}", engine))?;
 
-    let pool = SharedQueueThreadPool::new(num_cpus::get() as u32)?;
+    let pool = RayonThreadPool::new(8)?;
 
     match engine {
         Engine::Kvs => {
