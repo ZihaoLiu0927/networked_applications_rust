@@ -875,9 +875,11 @@ dependencies = [
  "assert_cmd",
  "clap 4.1.4",
  "criterion",
+ "crossbeam-utils",
  "failure",
  "file_offset",
  "gnuplot",
+ "panic-control",
  "plotters",
  "predicates",
  "rand",
@@ -1053,6 +1055,12 @@ name = "os_str_bytes"
 version = "6.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b7820b9daea5457c9f21c69448905d723fbd21136ccf521748f23fd49e723ee"
+
+[[package]]
+name = "panic-control"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "159973aebc43b4640619042b3bf160e3b6348000a949e37c0806ae6acc79d6c7"
 
 [[package]]
 name = "parking_lot"

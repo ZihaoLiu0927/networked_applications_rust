@@ -43,15 +43,15 @@ impl Worker {
 }
 
 impl ThreadPool for RayonThreadPool {
-    fn new(size: u32) -> Result<Self> 
+    fn new(thread: u32) -> Result<Self> 
     where Self: Sized 
     {
         let (tx, rx): (Sender<Job>, Receiver<Job>) = mpsc::channel();
         let rx = Arc::new(Mutex::new(rx));
         // need to add error handling
-        let mut workers = Vec::with_capacity(size.try_into().unwrap());
+        let mut workers = Vec::with_capacity(thread.try_into().unwrap());
 
-        for id in 0..size {
+        for id in 0..thread {
             workers.push(
                 Worker::new(id, Arc::clone(&rx))
             );

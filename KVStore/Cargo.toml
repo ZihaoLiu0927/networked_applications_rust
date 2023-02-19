@@ -26,6 +26,8 @@ slog-async = "2.7.0"
 sled = "0.34.7"
 gnuplot = "0.0.37"
 plotters = "0.3.4"
+crossbeam-utils = "0.8.14"
+panic-control = "0.1.4"
 
 [[bench]]
 name = "benchmark"
