@@ -1,5 +1,6 @@
-use crate::common::Engine;
-use crate::common::Methods;
+use crate::{
+    common::{Engine, Methods},
+};
 use clap::{self, Parser};
 
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";

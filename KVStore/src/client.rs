@@ -18,8 +18,8 @@ pub struct Client {
 impl Client {
     pub fn new(addr: SocketAddr) -> Result<Self> {
 
-        let stream = TcpStream::connect(addr)?;
-        let reader = BufReader::new(stream.try_clone()?);
+        let stream = TcpStream::connect(addr).expect("error in connection!");
+        let reader = BufReader::new(stream.try_clone().expect("error in clone stream"));
 
         Ok(Self {
             reader: Deserializer::from_reader(reader),

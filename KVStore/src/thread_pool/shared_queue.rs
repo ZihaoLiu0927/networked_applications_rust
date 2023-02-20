@@ -1,11 +1,15 @@
-use std::{panic, sync::mpsc, thread};
-use std::thread::JoinHandle;
-use std::sync::mpsc::{Sender, Receiver};
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::panic::AssertUnwindSafe;
-use crate::error::Result;
-use crate::ThreadPool;
+use crate::{
+    ThreadPool,
+    error::Result
+};
+
+use std::{
+    panic::{self, AssertUnwindSafe}, 
+    thread::{self, JoinHandle},
+    sync::{Arc, Mutex},
+    sync::mpsc::{self, Sender, Receiver},
+};
+
 
 pub struct SharedQueueThreadPool {
     workers: Vec<Worker>,
@@ -14,6 +18,7 @@ pub struct SharedQueueThreadPool {
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+#[allow(dead_code)]
 struct Worker {
     id: u32,
     thread: Option<JoinHandle<()>>,
@@ -35,7 +40,6 @@ impl Worker {
                 },
 
                 Err(_sender_shutdown) => {
-                    println!("worker exits.");
                     break;
                 }
             }
@@ -89,7 +93,6 @@ impl Drop for SharedQueueThreadPool {
         drop(self.sender.take());
 
         for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id);
             
             if let Some(worker) = worker.thread.take() {
                 worker.join().expect("Error when waiting for worker finishing its job.");

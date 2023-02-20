@@ -8,12 +8,14 @@ use kvs::{
     parser::server_parser,
     error::KVError,
     common::*,
-    server::Server, ThreadPool, thread_pool::{SharedQueueThreadPool, RayonThreadPool},
+    server::Server, 
+    ThreadPool, 
+    thread_pool::RayonThreadPool,
 };
 use std::{
     fs,
     net::SocketAddr,
-    sync::Mutex,
+    sync::{Arc, Mutex, atomic::AtomicBool},
     env::current_dir,
 };
 
@@ -76,7 +78,8 @@ fn run(engine: Engine, addr: SocketAddr, logger: Logger) -> Result<()> {
 
 
 fn run_kv_server<E: KvsEngine, P: ThreadPool>(engine: E, addr: SocketAddr, pool: P) -> Result<()> {
-    let mut server = Server::new(engine, addr, pool)?;
+    let killed = Arc::new(AtomicBool::new(false)); 
+    let mut server = Server::new(engine, addr, pool, killed)?;
     server.run()?;
     Ok(())
 }

@@ -1,15 +1,14 @@
-use crate::{engines::KvsEngine, common::{GetResponse, SetResponse, RmResponse}};
-use crate::error::Result;
-use crate::common::Request;
-use crate::thread_pool::*;
-
-use std::sync::{Arc, Mutex};
-
 use serde_json::Deserializer;
-
+use crate::{
+    error::Result,
+    common::Request,
+    thread_pool::*,
+    engines::KvsEngine, common::{GetResponse, SetResponse, RmResponse}
+};
 use std::{
     net::{SocketAddr, TcpListener, TcpStream},
     io::{BufReader, BufWriter, Write},
+    sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}},
 };
 
 // Server is a runable server instance with pluggale engine
@@ -17,6 +16,7 @@ pub struct Server<E: KvsEngine, P: ThreadPool> {
     engine: E,
     listener: TcpListener,
     pool: P,
+    killed: Arc<AtomicBool>,
 }
 
 // Server is a runable server instance with pluggale engine
@@ -24,13 +24,14 @@ pub struct Server<E: KvsEngine, P: ThreadPool> {
 impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
 
     // create a new Server instance
-    pub fn new(engine: E, addr: SocketAddr, pool: P) -> Result<Self> {
+    pub fn new(engine: E, addr: SocketAddr, pool: P, killed: Arc<AtomicBool>) -> Result<Self> {
         let listener = TcpListener::bind(addr)?;
 
         Ok(Self {
             engine,
             listener,
             pool,
+            killed,
         })
     }
 
@@ -40,6 +41,10 @@ impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
         let listener = self.listener.try_clone()?;
 
         for stream in listener.incoming() {
+
+            if self.killed.load(SeqCst) {
+                break;
+            }
 
             let engine = self.engine.clone();
 

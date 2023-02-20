@@ -18,10 +18,8 @@ use std::{
 };
 
 
-
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024; // 1MB
 const UNABLE_HOLD_LOCK: &str = "unable to hold lock.";
-
 
 #[derive(Clone)]
 pub struct KvStore(Arc<Mutex<SharedKvStore>>);
@@ -362,8 +360,6 @@ fn compaction(kvs: &mut MutexGuard<SharedKvStore>) -> Result<()> {
         }
         let mut read_from = reader.take(entry.1.len);
         let len = io::copy(&mut read_from, &mut writer)?;
-
-        //indexmap.insert(entry.0.clone(), (gen_compact, pos, len).into());
 
         *(entry.1) = (gen_compact, pos, len).into();
 

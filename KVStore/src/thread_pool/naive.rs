@@ -1,6 +1,9 @@
-use crate::error::Result;
-use crate::ThreadPool;
 use std::thread;
+
+use crate::{
+    ThreadPool,
+    error::Result
+};
 
 pub struct NaiveThreadPool;
 

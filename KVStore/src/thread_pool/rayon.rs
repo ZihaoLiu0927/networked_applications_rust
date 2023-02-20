@@ -1,5 +1,7 @@
-use crate::ThreadPool;
-use crate::error::Result;
+use crate::{
+    ThreadPool,
+    error::Result
+};
 
 pub struct RayonThreadPool {
     pool: rayon::ThreadPool,
