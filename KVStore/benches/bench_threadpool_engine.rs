@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use crossbeam_utils::sync::WaitGroup;
-use kvs::{KvStore, KvsEngine, client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool, SledKvsEngine};
+use kvs::{KvStore, KvsEngine, client::Client, server::Server, thread_pool::SharedQueueThreadPool, ThreadPool, SledKvsEngine};
 extern crate env_logger;
 
 use std::sync::{
@@ -49,7 +49,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
             let temp = TempDir::new().expect("unable to create temp directory.");
             let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
     
-            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -59,7 +59,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
                 server.run().expect("unable to run the server");
             });
 
-            let client_pool = RayonThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
+            let client_pool = SharedQueueThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
     
             b.iter(|| {
                 let wg = WaitGroup::new();
@@ -100,7 +100,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
             let temp = TempDir::new().expect("unable to create temp directory.");
             let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
     
-            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -110,7 +110,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
                 server.run().expect("unable to run the server");
             });
 
-            let client_pool = RayonThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
+            let client_pool = SharedQueueThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
     
             b.iter(|| {
                 let wg = WaitGroup::new();
@@ -177,7 +177,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 engine.set(key.clone(), value.clone()).unwrap();
             }
     
-            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -187,7 +187,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 server.run().expect("unable to run the server");
             });
 
-            let client_pool = RayonThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
+            let client_pool = SharedQueueThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
     
             b.iter(|| {
                 let wg = WaitGroup::new();
@@ -231,7 +231,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 engine.set(key.clone(), value.clone()).unwrap();
             }
     
-            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -241,7 +241,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 server.run().expect("unable to run the server");
             });
 
-            let client_pool = RayonThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
+            let client_pool = SharedQueueThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
     
             b.iter(|| {
                 let wg = WaitGroup::new();

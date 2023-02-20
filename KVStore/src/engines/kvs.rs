@@ -310,7 +310,7 @@ impl<W: Write+Seek> KVDiskWriter<W> {
         let len = self.writer.write(serialized.as_bytes())? as u64;
         let old_pos = self.cursor;
         self.cursor = old_pos + len;
-        self.writer.flush()?;
+        self.flush()?;
         Ok((old_pos, len))
     }
 }
