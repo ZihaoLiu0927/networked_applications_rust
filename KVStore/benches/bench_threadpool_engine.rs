@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use crossbeam_utils::sync::WaitGroup;
 use kvs::{KvStore, KvsEngine, client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool, SledKvsEngine};
-use std::time::Duration;
 extern crate env_logger;
 
 use std::sync::{
@@ -50,7 +49,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
             let temp = TempDir::new().expect("unable to create temp directory.");
             let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
     
-            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -101,7 +100,7 @@ fn criterion_benchmark_thread_num_write(c: &mut Criterion) {
             let temp = TempDir::new().expect("unable to create temp directory.");
             let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
     
-            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -178,7 +177,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 engine.set(key.clone(), value.clone()).unwrap();
             }
     
-            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -232,7 +231,7 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
                 engine.set(key.clone(), value.clone()).unwrap();
             }
     
-            let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
+            let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
     
             let killed = Arc::new(AtomicBool::new(false));
     
@@ -283,5 +282,5 @@ fn criterion_benchmark_thread_num_read(c: &mut Criterion) {
 
 }
 
-criterion_group!(benches, criterion_benchmark_thread_num_write);
+criterion_group!(benches, criterion_benchmark_thread_num_write, criterion_benchmark_thread_num_read);
 criterion_main!(benches);

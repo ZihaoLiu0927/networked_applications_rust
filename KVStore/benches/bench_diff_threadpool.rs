@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId};
 use crossbeam_utils::sync::WaitGroup;
-use kvs::{KvStore, client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool, SledKvsEngine};
+use kvs::{KvStore, client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool};
 use log::LevelFilter;
 extern crate env_logger;
 
@@ -21,7 +21,6 @@ const NUM_THREADS: [u32; 6] = [1,2,4,8,16,32];
 const NUM_REQUEST: usize = 00;
 
 fn criterion_benchmark_shared_queue(c: &mut Criterion) {
-
 
     let mut group = c.benchmark_group("shared_queue");
 
@@ -51,7 +50,7 @@ fn criterion_benchmark_shared_queue(c: &mut Criterion) {
 
             let value = "randomValue:rustacean".to_owned();
 
-            let client_pool = RayonThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
+            let client_pool = SharedQueueThreadPool::new(NUM_REQUEST as u32).expect("unable to create client pool.");
     
             b.iter(|| {
                 let wg = WaitGroup::new();
@@ -95,10 +94,7 @@ fn criterion_benchmark_shared_queue(c: &mut Criterion) {
 
 fn criterion_benchmark_rayon_pool(c: &mut Criterion) {
 
-
     let mut group = c.benchmark_group("rayon_pool");
-
-    // env_logger::builder().filter_level(LevelFilter::Error).init();
 
     for num in NUM_THREADS.iter() {
         group.bench_with_input(BenchmarkId::from_parameter(num), num, |b, n| {
