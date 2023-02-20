@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId};
 use crossbeam_utils::sync::WaitGroup;
-use kvs::{client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool, SledKvsEngine};
+use kvs::{KvStore, client::Client, server::Server, thread_pool::{SharedQueueThreadPool, RayonThreadPool}, ThreadPool, SledKvsEngine};
 use log::LevelFilter;
 extern crate env_logger;
 
@@ -30,7 +30,7 @@ fn criterion_benchmark_shared_queue(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(num), num, |b, n| {
 
             let temp = TempDir::new().expect("unable to create temp directory.");
-            let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
+            let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
     
             let pool = SharedQueueThreadPool::new(*n).expect("unable to create thread pool.");
     
@@ -100,7 +100,7 @@ fn criterion_benchmark_rayon_pool(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(num), num, |b, n| {
 
             let temp = TempDir::new().expect("unable to create temp directory.");
-            let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
+            let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
     
             let pool = RayonThreadPool::new(*n).expect("unable to create thread pool.");
     

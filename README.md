@@ -42,6 +42,8 @@ The read/write performance of the implemented engine was compared to sled using 
 
 <img src="KVStore/img/random_write.png" alt="Alt text" title="Random write">
 
+Sled seems to be slow in such circumstance. However, the kvs implemented so far not yet supported high throughput concurrent read/write so it is not fair to compare this way.
+
 ## How to run use the server
 
 Server side

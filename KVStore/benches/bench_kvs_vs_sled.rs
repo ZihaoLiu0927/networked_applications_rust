@@ -12,21 +12,21 @@ fn criterion_benchmark_read(c: &mut Criterion) {
     let mut group = c.benchmark_group("random_read");
 
     let mut rng = rand::thread_rng();
-    let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
     group.bench_function("sled", |b| {
         b.iter_batched(
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
                 let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
+                let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
                 for i in &range {
                     engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
 
-                engine
+                (engine, range)
             },
-            |engine| {
+            |(engine, range)| {
                 for i in &range {
                     engine.get(format!("{}", i)).expect("unable to set value");
                 }
@@ -39,14 +39,15 @@ fn criterion_benchmark_read(c: &mut Criterion) {
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
                 let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
+                let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
                 for i in &range {
                     engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
 
-                engine
+                (engine, range)
             },
-            |engine| {
+            |(engine, range)| {
                 for i in &range {
                     engine.get(format!("{}", i)).expect("unable to set value");
                 }
@@ -60,16 +61,17 @@ fn criterion_benchmark_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("random_write");
 
     let mut rng = rand::thread_rng();
-    let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
     group.bench_function("sled", |b| {
         b.iter_batched(
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
                 let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
-                engine
+                let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
+
+                (engine, range)
             },
-            |engine| {
+            |(engine, range)| {
                 for i in &range {
                     engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
@@ -82,9 +84,11 @@ fn criterion_benchmark_write(c: &mut Criterion) {
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
                 let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
-                engine
+                let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
+                
+                (engine, range)
             },
-            |engine| {
+            |(engine, range)| {
                 for i in &range {
                     engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
                 }
