@@ -28,11 +28,34 @@ This is a open source project for Rust lovers and learnners as part of the PingC
   - [x] Write a simple thread pool
   - [x] Use channels for cross-thread communication
   - [x] Share data structures with locks
-  - [ ] Perform read operations without locks
-  - [ ] Benchmark single-threaded vs multithreaded
+  - [x] Perform read operations without locks
+  - [x] Benchmark single-threaded vs multithreaded
 
 ## Environment
 
 - Rust 1.69.0-nightly
+
+## Benchmark
+The read/write performance of the implemented engine was compared to sled using random read/write operations.
+
+<img src="https://github.com/ZihaoLiu0927/networked_applications_rust/KVStore/img/random_read.png" alt="Alt text" title="Random read">
+
+<img src="https://github.com/ZihaoLiu0927/networked_applications_rust/KVStore/img/random_write.png" alt="Alt text" title="Random write">
+
+## How to run use the server
+
+Server side
+```
+cd KVStore/target/debug
+./kvs-server --engine [kvs/sled] --addr 127.0.0.1:4000
+```
+
+Client side
+```
+cd KVStore/target/debug
+./kvs-client [set/rm] [key] [value] --addr 127.0.0.1:4000
+./kvs-client [get] [key] --addr 127.0.0.1:4000
+```
+
 
 
