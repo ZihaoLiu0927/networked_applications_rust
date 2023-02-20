@@ -38,9 +38,9 @@ This is a open source project for Rust lovers and learnners as part of the PingC
 ## Benchmark
 The read/write performance of the implemented engine was compared to sled using random read/write operations.
 
-<img src="/img/random_read.png" alt="Alt text" title="Random read">
+<img src="KVStore/img/random_read.png" alt="Alt text" title="Random read">
 
-<img src="/img/random_write.png" alt="Alt text" title="Random write">
+<img src="KVStore/img/random_write.png" alt="Alt text" title="Random write">
 
 ## How to run use the server
 
