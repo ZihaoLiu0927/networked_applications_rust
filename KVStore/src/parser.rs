@@ -1,11 +1,8 @@
-use crate::{
-    common::{Engine, Methods},
-};
+use crate::common::{Engine, Methods};
 use clap::{self, Parser};
 
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";
 const DEFAULT_ENGINE: Engine = Engine::Kvs;
-
 
 // used by kvs-client to parse command line parameters
 pub mod client_parser {
@@ -26,9 +23,7 @@ pub mod client_parser {
             Self::parse()
         }
     }
-
 }
-
 
 // used by kvs-server to parse command line parameters
 pub mod server_parser {
@@ -51,5 +46,4 @@ pub mod server_parser {
             Self::parse()
         }
     }
-
 }

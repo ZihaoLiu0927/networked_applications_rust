@@ -1,28 +1,20 @@
 use slog::Logger;
 
 use kvs::{
-    Result,
-    KvStore, 
-    SledKvsEngine, 
-    KvsEngine,
-    parser::server_parser,
-    error::KVError,
-    common::*,
-    server::Server, 
-    ThreadPool, 
-    thread_pool::RayonThreadPool,
+    common::*, error::KVError, parser::server_parser, server::Server, thread_pool::RayonThreadPool,
+    KvStore, KvsEngine, Result, SledKvsEngine, ThreadPool,
 };
 use std::{
+    env::current_dir,
     fs,
     net::SocketAddr,
-    sync::{Arc, Mutex, atomic::AtomicBool},
-    env::current_dir,
+    sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
 extern crate slog;
-extern crate slog_term;
-extern crate slog_json;
 extern crate slog_async;
+extern crate slog_json;
+extern crate slog_term;
 use crate::slog::Drain;
 
 const ENGINE_KVS: &str = "kvs";
@@ -30,13 +22,11 @@ const ENGINE_SLED: &str = "sled";
 const ENGINE_FILE: &str = "engine.rec";
 const ENGINE_DB_DI: &str = "database";
 
-
 fn main() -> Result<()> {
-
-    let drain = slog_term::CompactFormat::new(
-        slog_term::PlainSyncDecorator::new(std::io::stderr()))
-        .build()
-        .fuse();
+    let drain =
+        slog_term::CompactFormat::new(slog_term::PlainSyncDecorator::new(std::io::stderr()))
+            .build()
+            .fuse();
 
     let root_logger = slog::Logger::root(Mutex::new(drain).fuse(), slog::o!());
 
@@ -44,16 +34,14 @@ fn main() -> Result<()> {
 
     let engine = check_engine(cli.engine)?;
 
-    let socket: SocketAddr = cli.addr.parse()?; 
+    let socket: SocketAddr = cli.addr.parse()?;
 
     run(engine, socket, root_logger)?;
 
     Ok(())
-
- }
+}
 
 fn run(engine: Engine, addr: SocketAddr, logger: Logger) -> Result<()> {
-
     slog::info!(logger, ""; "kv server" => env!("CARGO_PKG_VERSION"));
     slog::info!(logger, ""; "ip" => format!("{}:{}", addr.ip(), addr.port()));
     slog::info!(logger, ""; "Engine" => format!("{}", engine));
@@ -76,20 +64,18 @@ fn run(engine: Engine, addr: SocketAddr, logger: Logger) -> Result<()> {
     Ok(())
 }
 
-
 fn run_kv_server<E: KvsEngine, P: ThreadPool>(engine: E, addr: SocketAddr, pool: P) -> Result<()> {
-    let killed = Arc::new(AtomicBool::new(false)); 
+    let killed = Arc::new(AtomicBool::new(false));
     let mut server = Server::new(engine, addr, pool, killed)?;
     server.run()?;
     Ok(())
 }
 
 // the parser ensures that input engine must be either kvs or sled
-// check_engine return an existing engine or create a new engine record file 
+// check_engine return an existing engine or create a new engine record file
 fn check_engine(assigned_engine: Engine) -> Result<Engine> {
     let path = current_dir()?.join(ENGINE_FILE);
     if path.exists() {
-
         let content = fs::read_to_string(path)?.to_lowercase();
 
         let read_engine = match content.as_str() {
@@ -97,12 +83,12 @@ fn check_engine(assigned_engine: Engine) -> Result<Engine> {
             ENGINE_SLED => Engine::Sled,
             _ => return Err(KVError::EngineNotMatch),
         };
-        
+
         if read_engine == assigned_engine {
             return Ok(assigned_engine);
         }
 
-        return Err(KVError::EngineNotMatch)
+        return Err(KVError::EngineNotMatch);
     }
 
     Ok(assigned_engine)

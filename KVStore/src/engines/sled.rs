@@ -1,29 +1,20 @@
 use sled::Db;
 
-use crate::{
-    KvsEngine, KVError,
-    error::Result
-};
-use std::{
-    path::PathBuf,
-    str,
-};
+use crate::{error::Result, KVError, KvsEngine};
+use std::{path::PathBuf, str};
 
 #[derive(Clone)]
 pub struct SledKvsEngine {
-    db: Db
+    db: Db,
 }
 
 impl SledKvsEngine {
     pub fn open(path: impl Into<PathBuf>) -> Result<SledKvsEngine> {
         let db = sled::open(path.into())?;
 
-        Ok(Self {
-            db
-        })
+        Ok(Self { db })
     }
 }
-
 
 impl KvsEngine for SledKvsEngine {
     fn set(&self, key: String, value: String) -> Result<()> {
@@ -39,7 +30,7 @@ impl KvsEngine for SledKvsEngine {
         let tree: &Db = &self.db;
         if let Some(res) = tree.get(key.as_bytes())? {
             let s = String::from(str::from_utf8(&res)?);
-            return Ok(Some(s))
+            return Ok(Some(s));
         }
         Ok(None)
     }

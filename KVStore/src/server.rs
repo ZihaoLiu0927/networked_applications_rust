@@ -1,14 +1,18 @@
-use serde_json::Deserializer;
 use crate::{
-    error::Result,
     common::Request,
+    common::{GetResponse, RmResponse, SetResponse},
+    engines::KvsEngine,
+    error::Result,
     thread_pool::*,
-    engines::KvsEngine, common::{GetResponse, SetResponse, RmResponse}
 };
+use serde_json::Deserializer;
 use std::{
-    net::{SocketAddr, TcpListener, TcpStream},
     io::{BufReader, BufWriter, Write},
-    sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}},
+    net::{SocketAddr, TcpListener, TcpStream},
+    sync::{
+        atomic::{AtomicBool, Ordering::SeqCst},
+        Arc,
+    },
 };
 
 // Server is a runable server instance with pluggale engine
@@ -22,7 +26,6 @@ pub struct Server<E: KvsEngine, P: ThreadPool> {
 // Server is a runable server instance with pluggale engine
 // implement a new() and run() method to it
 impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
-
     // create a new Server instance
     pub fn new(engine: E, addr: SocketAddr, pool: P, killed: Arc<AtomicBool>) -> Result<Self> {
         let listener = TcpListener::bind(addr)?;
@@ -37,11 +40,9 @@ impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
 
     // run starts to listen a port and response any requests from client side
     pub fn run(&mut self) -> Result<()> {
-
         let listener = self.listener.try_clone()?;
 
         for stream in listener.incoming() {
-
             if self.killed.load(SeqCst) {
                 break;
             }
@@ -51,7 +52,7 @@ impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
             match stream {
                 Ok(stream) => {
                     self.pool.spawn(move || {
-                        if let Err(e) =  request_handler(engine, stream) {
+                        if let Err(e) = request_handler(engine, stream) {
                             eprintln!("Error in request handling: {}", e);
                         }
                     });
@@ -64,9 +65,7 @@ impl<E: KvsEngine, P: ThreadPool> Server<E, P> {
         }
         Ok(())
     }
-
 }
-
 
 fn request_handler<E: KvsEngine>(engine: E, stream: TcpStream) -> Result<()> {
     let reader = Deserializer::from_reader(BufReader::new(stream.try_clone()?));
@@ -74,30 +73,32 @@ fn request_handler<E: KvsEngine>(engine: E, stream: TcpStream) -> Result<()> {
 
     let mut reader_decode = reader.into_iter::<Request>();
 
-    let req = reader_decode.next().expect("client request should not be empty!")?;
+    let req = reader_decode
+        .next()
+        .expect("client request should not be empty!")?;
 
     let serialized = match req {
-        Request::Get {key} => {
+        Request::Get { key } => {
             let get_res = match engine.get(key) {
-                Ok(content) =>  GetResponse::Ok(content),
+                Ok(content) => GetResponse::Ok(content),
                 Err(e) => GetResponse::Err(e.to_string()),
             };
             serde_json::to_string_pretty(&get_res)?
-        },
-        Request::Set {key, value} => {
+        }
+        Request::Set { key, value } => {
             let set_res = match engine.set(key, value) {
                 Ok(_) => SetResponse::Ok(),
                 Err(e) => SetResponse::Err(e.to_string()),
             };
             serde_json::to_string_pretty(&set_res)?
-        },
-        Request::Remove {key} => {
+        }
+        Request::Remove { key } => {
             let rm_res = match engine.remove(key) {
                 Ok(_) => RmResponse::Ok(),
                 Err(e) => RmResponse::Err(e.to_string()),
             };
             serde_json::to_string_pretty(&rm_res)?
-        },
+        }
     };
 
     writer.write(serialized.as_bytes())?;

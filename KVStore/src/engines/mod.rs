@@ -1,7 +1,7 @@
 use crate::Result;
 
-pub trait KvsEngine: Clone + Send + 'static  {
-    /// Sets the value of a string key to a string. 
+pub trait KvsEngine: Clone + Send + 'static {
+    /// Sets the value of a string key to a string.
     /// Return an error if the value is not written successfully.
     fn set(&self, key: String, value: String) -> Result<()>;
 

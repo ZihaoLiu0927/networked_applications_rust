@@ -1,12 +1,11 @@
-use criterion::{criterion_group, criterion_main, Criterion, BatchSize::SmallInput};
-use kvs::{KvsEngine, KvStore, SledKvsEngine};
+use criterion::{criterion_group, criterion_main, BatchSize::SmallInput, Criterion};
+use kvs::{KvStore, KvsEngine, SledKvsEngine};
 
 use rand::seq::IteratorRandom;
 use tempfile::TempDir;
 
 const NUM_DATA: usize = 10;
 const MAX_LEN: usize = 100000;
-
 
 fn criterion_benchmark_read(c: &mut Criterion) {
     let mut group = c.benchmark_group("random_read");
@@ -17,11 +16,14 @@ fn criterion_benchmark_read(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
-                let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
+                let engine =
+                    SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
                 let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
                 for i in &range {
-                    engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
+                    engine
+                        .set(format!("{}", i), format!("{}", i))
+                        .expect("unable to set value");
                 }
 
                 (engine, range)
@@ -30,8 +32,9 @@ fn criterion_benchmark_read(c: &mut Criterion) {
                 for i in &range {
                     engine.get(format!("{}", i)).expect("unable to set value");
                 }
-            }, 
-            SmallInput)
+            },
+            SmallInput,
+        )
     });
 
     group.bench_function("kvs", |b| {
@@ -42,7 +45,9 @@ fn criterion_benchmark_read(c: &mut Criterion) {
                 let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
                 for i in &range {
-                    engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
+                    engine
+                        .set(format!("{}", i), format!("{}", i))
+                        .expect("unable to set value");
                 }
 
                 (engine, range)
@@ -51,10 +56,10 @@ fn criterion_benchmark_read(c: &mut Criterion) {
                 for i in &range {
                     engine.get(format!("{}", i)).expect("unable to set value");
                 }
-            }, 
-            SmallInput)
+            },
+            SmallInput,
+        )
     });
-
 }
 
 fn criterion_benchmark_write(c: &mut Criterion) {
@@ -66,17 +71,21 @@ fn criterion_benchmark_write(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let temp = TempDir::new().expect("unable to create temp directory.");
-                let engine = SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
+                let engine =
+                    SledKvsEngine::open(temp.path()).expect("unable to create a new storage.");
                 let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
 
                 (engine, range)
             },
             |(engine, range)| {
                 for i in &range {
-                    engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
+                    engine
+                        .set(format!("{}", i), format!("{}", i))
+                        .expect("unable to set value");
                 }
             },
-        SmallInput,)
+            SmallInput,
+        )
     });
 
     group.bench_function("kvs", |b| {
@@ -85,19 +94,21 @@ fn criterion_benchmark_write(c: &mut Criterion) {
                 let temp = TempDir::new().expect("unable to create temp directory.");
                 let engine = KvStore::open(temp.path()).expect("unable to create a new storage.");
                 let range = (1..MAX_LEN).choose_multiple(&mut rng, NUM_DATA).to_vec();
-                
+
                 (engine, range)
             },
             |(engine, range)| {
                 for i in &range {
-                    engine.set(format!("{}", i), format!("{}", i)).expect("unable to set value");
+                    engine
+                        .set(format!("{}", i), format!("{}", i))
+                        .expect("unable to set value");
                 }
             },
-        SmallInput,)
+            SmallInput,
+        )
     });
 
     group.finish()
-
 }
 
 criterion_group!(benches, criterion_benchmark_read, criterion_benchmark_write);

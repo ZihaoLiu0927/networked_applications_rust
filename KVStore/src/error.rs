@@ -1,8 +1,7 @@
 use failure::Fail;
-use std::{io, net, fmt, str::Utf8Error};
+use std::{fmt, io, net, str::Utf8Error};
 
-
-// error handling. Any error will be converted to the same type: KVError 
+// error handling. Any error will be converted to the same type: KVError
 // to facilitate the development
 #[derive(Debug, Fail)]
 pub enum KVError {
@@ -11,7 +10,7 @@ pub enum KVError {
 
     #[fail(display = "Error: an io error happened!")]
     Io,
-    
+
     #[fail(display = "Error: a serde error happened!")]
     Serde,
 
@@ -50,7 +49,7 @@ pub enum KVError {
 }
 
 impl From<serde_json::Error> for KVError {
-    fn from(_err: serde_json::Error) -> KVError { 
+    fn from(_err: serde_json::Error) -> KVError {
         KVError::Serde
     }
 }

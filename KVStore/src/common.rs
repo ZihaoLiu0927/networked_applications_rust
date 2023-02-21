@@ -1,8 +1,8 @@
-use clap::{self, Subcommand, Parser};
+use clap::{self, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
+    fmt::{self, Display},
     result::Result,
-    fmt::{self,Display}
 };
 
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";
@@ -13,7 +13,6 @@ pub enum Methods {
     Get(GetAction),
     Rm(RemoveAction),
 }
-
 
 #[derive(Debug, Parser, Serialize, Deserialize)]
 pub struct SetAction {
@@ -41,15 +40,12 @@ pub struct RemoveAction {
     pub addr: String,
 }
 
-
-
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
-    Get {key: String},
-    Set {key: String, value: String},
-    Remove {key: String},
+    Get { key: String },
+    Set { key: String, value: String },
+    Remove { key: String },
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum GetResponse {
@@ -69,8 +65,6 @@ pub enum RmResponse {
     Err(String),
 }
 
-
-
 #[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
 pub enum Engine {
     Kvs,
@@ -78,7 +72,7 @@ pub enum Engine {
 }
 
 impl Display for Engine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> { 
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Engine::Kvs => {
                 return Ok(write!(f, "{}", "kvs")?);
@@ -90,12 +84,10 @@ impl Display for Engine {
     }
 }
 
-
-
 // extenable for future
 #[macro_export]
 macro_rules! logfile {
     ($dir: expr, $fgen: expr) => {
         $dir.join(format!("{}.log", $fgen))
-    }
+    };
 }
