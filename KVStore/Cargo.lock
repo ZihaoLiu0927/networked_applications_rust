@@ -407,6 +407,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-skiplist"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "883a5821d7d079fcf34ac55f27a833ee61678110f6b97637cc74513c0d0b42fc"
+dependencies = [
+ "cfg-if",
+ "crossbeam-epoch",
+ "crossbeam-utils",
+ "scopeguard",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -784,15 +796,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "221996f774192f0f718773def8201c4ae31f02616a54ccfc2d358bb0e5cefdec"
 
 [[package]]
-name = "gnuplot"
-version = "0.0.37"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de437277a7ec10de5f34e3147c7da4c6d8b279c5d8ae1e33e842fd9432bb0f3"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
 name = "half"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -957,11 +960,11 @@ dependencies = [
  "assert_cmd",
  "clap 4.1.4",
  "criterion",
+ "crossbeam-skiplist",
  "crossbeam-utils",
  "env_logger",
  "failure",
  "file_offset",
- "gnuplot",
  "log",
  "num_cpus",
  "panic-control",

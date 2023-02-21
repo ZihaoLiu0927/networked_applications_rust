@@ -27,12 +27,11 @@ slog-json = "2.6.1"
 slog-async = "2.7.0"
 sled = "0.34.7"
 plotters = "0.3.4"
-crossbeam-utils = "0.8.14"
 panic-control = "0.1.4"
 num_cpus = "1.15.0"
 rayon = "1.6.1"
-gnuplot = "0.0.37"
-
+crossbeam-skiplist = "0.1.1"
+crossbeam-utils = "0.8.14"
 
 [[bench]]
 name = "bench_kvs_vs_sled"

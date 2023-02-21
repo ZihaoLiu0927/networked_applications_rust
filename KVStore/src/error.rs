@@ -39,11 +39,14 @@ pub enum KVError {
     #[fail(display = "Error: cannot create client instance!")]
     FailClientInstance,
 
-    #[fail(display = "Error: from request from client")]
+    #[fail(display = "Error: from client request.")]
     RequestError,
 
     #[fail(display = "Error: sled error")]
     SledError,
+
+    #[fail(display = "Error: get method error!")]
+    GetMethodError,
 }
 
 impl From<serde_json::Error> for KVError {
